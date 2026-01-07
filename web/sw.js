@@ -1,17 +1,25 @@
+const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
+
 self.addEventListener("push", (event) => {
-  let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch (e) {}
+  event.waitUntil((async () => {
+    let title = "Bildirim";
+    let body = "Yeni bildirim var.";
 
-  const title = data.title || "Bildirim";
-  const body = data.body || "Yeni bildirim var.";
+    try {
+      const res = await fetch(WORKER_BASE + "/lastCampaign", { cache: "no-store" });
+      const data = await res.json();
+      title = data.title || title;
+      body = data.body || body;
+    } catch (e) {
+      // fallback
+    }
 
-  event.waitUntil(
-    self.registration.showNotification(title, {
+    await self.registration.showNotification(title, {
       body,
       icon: "/icon.png",
       badge: "/icon.png",
       tag: "betapp",
       renotify: true,
-    })
-  );
+    });
+  })());
 });
