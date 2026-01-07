@@ -10,9 +10,8 @@ self.addEventListener("push", (event) => {
       body,
       icon: "/icon.png",
       badge: "/icon.png",
-      tag: "betapp-campaign",
+      tag: "betapp",
       renotify: true,
-      requireInteraction: true
     })
   );
 });
