@@ -2,61 +2,66 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bet App</title>
+  <link rel="manifest" href="/manifest.json">
   <style>
-    body { font-family: -apple-system, system-ui, Arial; padding: 20px; max-width: 520px; margin: 0 auto; }
-    input, button { width: 100%; padding: 12px; font-size: 16px; margin: 8px 0; }
+    body { font-family: system-ui, -apple-system, Arial; padding: 24px; max-width: 560px; margin: 0 auto; }
+    h1 { font-size: 28px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; }
+    input, button { width: 100%; padding: 14px; font-size: 16px; margin-top: 10px; }
     button { cursor: pointer; }
-    .box { border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-top: 12px; }
-    .muted { color:#666; font-size: 14px; }
+    pre { white-space: pre-wrap; word-break: break-word; background:#f6f6f6; padding: 12px; border-radius: 8px; }
+    .ok { color: #0a7; font-weight: 700; }
+    .bad { color: #c00; font-weight: 700; }
   </style>
 </head>
 <body>
-  <h2>Uygulama Giriş</h2>
+  <h1>Uygulama Giriş</h1>
 
-  <div class="box">
-    <div class="muted">1) Kullanıcı adını yaz</div>
-    <input id="username" placeholder="Kullanıcı adınız" />
-    <button id="saveBtn">Kaydet</button>
-    <div id="saved" class="muted"></div>
+  <div class="card">
+    <div><b>0) Durum</b></div>
+    <div id="status">Yükleniyor...</div>
+    <pre id="debug"></pre>
   </div>
 
-  <div class="box">
-    <div class="muted">2) Bildirimleri aç</div>
-    <button id="pushBtn">Bildirimleri Aç</button>
-    <div id="status" class="muted"></div>
+  <div class="card">
+    <div><b>1) Kullanıcı adı</b></div>
+    <input id="username" placeholder="Örn: iphone11-1" />
+    <button id="saveBtn">Kaydet</button>
+  </div>
+
+  <div class="card">
+    <div><b>2) Bildirim</b></div>
+    <button id="localBtn">Local Test (hemen bildirim göster)</button>
+    <button id="subBtn">Bildirimleri Aç (subscribe)</button>
   </div>
 
   <script>
+    // ✅ BURAYI kendi Worker URL'in ile değiştir
     const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
 
-    const elUser = document.getElementById("username");
-    const elSaved = document.getElementById("saved");
-    const elStatus = document.getElementById("status");
+    const $ = (id) => document.getElementById(id);
 
-    function getUsername() {
-      return (localStorage.getItem("username") || "").trim();
+    function setStatus(msg, ok=true) {
+      $("status").innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${msg}</span>`;
     }
-    function setUsername(u) {
-      localStorage.setItem("username", u.trim());
-    }
-    function render() {
-      const u = getUsername();
-      elUser.value = u;
-      elSaved.textContent = u ? `Kayıtlı kullanıcı: ${u}` : "Henüz kayıt yok.";
+    function setDebug(obj) {
+      $("debug").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
     }
 
-    document.getElementById("saveBtn").onclick = () => {
-      const u = elUser.value.trim();
-      if (!u) return alert("Kullanıcı adı yaz.");
-      setUsername(u);
-      render();
-      alert("Kaydedildi ✅");
-    };
+    async function registerSW() {
+      if (!("serviceWorker" in navigator)) {
+        setStatus("Service Worker desteklenmiyor", false);
+        return;
+      }
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      return reg;
+    }
 
     function urlBase64ToUint8Array(base64String) {
-      const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+      const padding = "=".repeat((4 - base64String.length % 4) % 4);
       const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
       const rawData = atob(base64);
       const outputArray = new Uint8Array(rawData.length);
@@ -64,51 +69,84 @@
       return outputArray;
     }
 
-    document.getElementById("pushBtn").onclick = async () => {
-      const username = getUsername();
-      if (!username) return alert("Önce kullanıcı adını kaydet.");
+    async function getVapidKey() {
+      const r = await fetch(WORKER_BASE + "/vapidPublicKey");
+      const k = await r.text();
+      return k.trim();
+    }
 
-      if (!("serviceWorker" in navigator)) {
-        return alert("Tarayıcı service worker desteklemiyor.");
-      }
+    function getUsername() {
+      const u = $("username").value.trim();
+      return u;
+    }
 
-      // ✅ BU SATIR SENDERDE YOKTU: artık var
-      const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
-
-      // SW'e Worker adresini gönder (push gelince lastCampaign çekmesi için)
-      if (reg.active) {
-        reg.active.postMessage({ type: "SET_WORKER_BASE", workerBase: WORKER_BASE });
-      } else {
-        // İlk kurulumda active hemen gelmeyebilir
-        setTimeout(() => {
-          reg.active?.postMessage({ type: "SET_WORKER_BASE", workerBase: WORKER_BASE });
-        }, 1000);
-      }
-
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") {
-        elStatus.textContent = "Bildirim izni verilmedi.";
-        return;
-      }
-
-      const publicKey = await fetch(WORKER_BASE + "/vapidPublicKey").then(r => r.text());
-
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey.trim())
-      });
-
-      await fetch(WORKER_BASE + "/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, subscription: sub })
-      });
-
-      elStatus.textContent = "Bildirimler açıldı ✅";
-      alert("Bildirimler açıldı ✅");
+    $("saveBtn").onclick = () => {
+      const u = getUsername();
+      if (!u) return setStatus("Kullanıcı adı boş olamaz", false);
+      localStorage.setItem("betapp_username", u);
+      setStatus("Kayıt edildi: " + u, true);
     };
 
-    render();
+    $("localBtn").onclick = async () => {
+      const reg = await registerSW();
+      if (!reg) return;
+      // Bu test çalışıyorsa: iOS bildirim ayarların tamamdır.
+      await reg.showNotification("Local Test", { body: "Bu bildirim cihazda görünüyor mu?", icon: "/icon.png" });
+      setStatus("Local test gönderildi. Bildirim göründü mü?", true);
+    };
+
+    $("subBtn").onclick = async () => {
+      try {
+        const u = getUsername() || localStorage.getItem("betapp_username") || "";
+        if (!u) return setStatus("Önce kullanıcı adı kaydet", false);
+
+        const reg = await registerSW();
+        if (!reg) return;
+
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return setStatus("Bildirim izni verilmedi: " + perm, false);
+
+        const vapid = await getVapidKey();
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapid),
+        });
+
+        const res = await fetch(WORKER_BASE + "/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: u, subscription: sub }),
+        });
+
+        const txt = await res.text();
+        setStatus("Subscribe OK. KV’ye yazıldı mı kontrol et.", true);
+
+        setDebug({
+          username: u,
+          permission: perm,
+          endpoint: sub.endpoint,
+          worker: WORKER_BASE,
+          subscribeResponse: txt
+        });
+
+      } catch (e) {
+        setStatus("Subscribe hata: " + String(e), false);
+        setDebug(String(e));
+      }
+    };
+
+    (async () => {
+      const saved = localStorage.getItem("betapp_username");
+      if (saved) $("username").value = saved;
+
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+      const perm = Notification.permission;
+
+      setStatus("Hazır. Standalone=" + isStandalone + " permission=" + perm, true);
+      setDebug({ standalone: isStandalone, permission: perm, worker: WORKER_BASE });
+
+      await registerSW();
+    })();
   </script>
 </body>
 </html>
