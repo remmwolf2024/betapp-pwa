@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Bildirim</title>
+  <style>
+    body { font-family: -apple-system, system-ui, Arial; padding: 20px; max-width: 520px; margin: 0 auto; }
+    input, textarea, button { width: 100%; padding: 12px; font-size: 16px; margin: 8px 0; }
+    textarea { height: 120px; }
+    .muted { color:#666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>Admin Bildirim Gönder</h2>
+  <div class="muted">ADMIN_TOKEN yaz, sonra gönder.</div>
+
+  <input id="token" placeholder="ADMIN_TOKEN" />
+  <input id="title" placeholder="Başlık" value="Freespin!" />
+  <textarea id="body" placeholder="Mesaj">Bugüne özel 50 freespin kodu: ABC50</textarea>
+
+  <button id="send">Gönder</button>
+
+  <pre id="out"></pre>
+
+  <script>
+    const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
+
+    document.getElementById("send").onclick = async () => {
+      const token = document.getElementById("token").value.trim();
+      const title = document.getElementById("title").value.trim();
+      const body = document.getElementById("body").value.trim();
+
+      const res = await fetch(WORKER_BASE + "/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ title, body })
+      });
+
+      document.getElementById("out").textContent = await res.text();
+    };
+  </script>
+</body>
+</html>
