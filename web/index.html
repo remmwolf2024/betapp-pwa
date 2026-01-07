@@ -4,16 +4,111 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bet App</title>
+  <style>
+    body { font-family: -apple-system, system-ui, Arial; padding: 20px; max-width: 520px; margin: 0 auto; }
+    input, button { width: 100%; padding: 12px; font-size: 16px; margin: 8px 0; }
+    button { cursor: pointer; }
+    .box { border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-top: 12px; }
+    .muted { color:#666; font-size: 14px; }
+  </style>
 </head>
 <body>
-  <h2>Kullanıcı Adı</h2>
-  <input id="username" placeholder="Kullanıcı adınız" />
-  <button onclick="save()">Kaydet</button>
+  <h2>Uygulama Giriş</h2>
+
+  <div class="box">
+    <div class="muted">1) Kullanıcı adını yaz</div>
+    <input id="username" placeholder="Kullanıcı adınız" />
+    <button id="saveBtn">Kaydet</button>
+    <div id="saved" class="muted"></div>
+  </div>
+
+  <div class="box">
+    <div class="muted">2) Bildirimleri aç</div>
+    <button id="pushBtn">Bildirimleri Aç</button>
+    <div id="status" class="muted"></div>
+  </div>
 
   <script>
-    function save() {
-      alert("Devam edeceğiz, sistem kuruluyor");
+    const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
+
+    const elUser = document.getElementById("username");
+    const elSaved = document.getElementById("saved");
+    const elStatus = document.getElementById("status");
+
+    function getUsername() {
+      return (localStorage.getItem("username") || "").trim();
     }
+    function setUsername(u) {
+      localStorage.setItem("username", u.trim());
+    }
+    function render() {
+      const u = getUsername();
+      elUser.value = u;
+      elSaved.textContent = u ? `Kayıtlı kullanıcı: ${u}` : "Henüz kayıt yok.";
+    }
+
+    document.getElementById("saveBtn").onclick = () => {
+      const u = elUser.value.trim();
+      if (!u) return alert("Kullanıcı adı yaz.");
+      setUsername(u);
+      render();
+      alert("Kaydedildi ✅");
+    };
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const rawData = atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+
+    document.getElementById("pushBtn").onclick = async () => {
+      const username = getUsername();
+      if (!username) return alert("Önce kullanıcı adını kaydet.");
+
+      if (!("serviceWorker" in navigator)) {
+        return alert("Tarayıcı service worker desteklemiyor.");
+      }
+
+      // ✅ BU SATIR SENDERDE YOKTU: artık var
+      const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+
+      // SW'e Worker adresini gönder (push gelince lastCampaign çekmesi için)
+      if (reg.active) {
+        reg.active.postMessage({ type: "SET_WORKER_BASE", workerBase: WORKER_BASE });
+      } else {
+        // İlk kurulumda active hemen gelmeyebilir
+        setTimeout(() => {
+          reg.active?.postMessage({ type: "SET_WORKER_BASE", workerBase: WORKER_BASE });
+        }, 1000);
+      }
+
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        elStatus.textContent = "Bildirim izni verilmedi.";
+        return;
+      }
+
+      const publicKey = await fetch(WORKER_BASE + "/vapidPublicKey").then(r => r.text());
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey.trim())
+      });
+
+      await fetch(WORKER_BASE + "/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, subscription: sub })
+      });
+
+      elStatus.textContent = "Bildirimler açıldı ✅";
+      alert("Bildirimler açıldı ✅");
+    };
+
+    render();
   </script>
 </body>
 </html>
