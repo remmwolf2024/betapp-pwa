@@ -14,10 +14,14 @@
     pre { white-space: pre-wrap; word-break: break-word; background:#f6f6f6; padding: 12px; border-radius: 8px; }
     .ok { color: #0a7; font-weight: 700; }
     .bad { color: #c00; font-weight: 700; }
+    .warn { background:#fff4e5; border:1px solid #ffd9a8; padding:12px; border-radius:10px; margin: 12px 0; }
+    .warn b { display:block; margin-bottom:6px; }
   </style>
 </head>
 <body>
   <h1>Uygulama</h1>
+
+  <div id="browserWarn" class="warn" style="display:none;"></div>
 
   <div class="card">
     <b>Durum</b>
@@ -72,6 +76,35 @@
       if (/Firefox/i.test(ua)) return "Firefox";
       if (/Chrome/i.test(ua)) return "Chrome";
       return "Other";
+    }
+
+    function showBrowserGuidance(){
+      const plat = detectPlatform();
+      const br = detectBrowser();
+      const box = $("browserWarn");
+
+      if(plat === "iOS" && br !== "Safari"){
+        box.style.display = "block";
+        box.innerHTML = `
+          <b>iPhone/iPad için uyarı</b>
+          Bildirim ve “Ana ekrana ekle” deneyimi en sorunsuz <b>Safari</b> ile çalışır.
+          Lütfen bu sayfayı <b>Safari</b> ile açıp “Ana ekrana ekle” yapın.
+        `;
+        return;
+      }
+
+      if(plat === "Android" && !(br === "Chrome" || br === "Samsung Internet")){
+        box.style.display = "block";
+        box.innerHTML = `
+          <b>Android için uyarı</b>
+          Bildirim ve PWA için önerilen tarayıcı <b>Chrome</b> (veya <b>Samsung Internet</b>).
+          Lütfen bu sayfayı bu tarayıcılardan biriyle açıp devam edin.
+        `;
+        return;
+      }
+
+      box.style.display = "none";
+      box.innerHTML = "";
     }
 
     function getOrCreateDeviceId(){
@@ -161,7 +194,6 @@
         }
 
         const vapid = await getVapidKey();
-
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapid),
@@ -175,18 +207,9 @@
           body: JSON.stringify({ deviceId, username: u, subscription: sub }),
         });
 
-        const txt = await res.text();
+        await res.text();
         setStatus("Bildirimler Açıldı ✅", true);
-
         await upsertUser();
-
-        setDebug({
-          deviceId,
-          username: u,
-          permission: perm,
-          endpoint: sub.endpoint,
-          subscribeResponse: txt
-        });
 
       } catch (e) {
         setStatus("Hata: " + String(e), false);
@@ -195,6 +218,8 @@
     };
 
     (async function init(){
+      showBrowserGuidance();
+
       const saved = localStorage.getItem("betapp_username");
       if(saved) $("username").value = saved;
 
