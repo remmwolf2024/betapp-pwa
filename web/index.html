@@ -7,9 +7,9 @@
   <link rel="manifest" href="/manifest.json">
   <style>
     body { font-family: system-ui, -apple-system, Arial; padding: 24px; max-width: 560px; margin: 0 auto; }
-    h1 { font-size: 28px; }
+    h1 { font-size: 26px; }
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; }
-    input, button { width: 100%; padding: 14px; font-size: 16px; margin-top: 10px; }
+    input, button { width: 100%; padding: 14px; font-size: 16px; margin: 10px 0; }
     button { cursor: pointer; }
     pre { white-space: pre-wrap; word-break: break-word; background:#f6f6f6; padding: 12px; border-radius: 8px; }
     .ok { color: #0a7; font-weight: 700; }
@@ -17,44 +17,69 @@
   </style>
 </head>
 <body>
-  <h1>Uygulama Giriş</h1>
+  <h1>Uygulama</h1>
 
   <div class="card">
-    <div><b>0) Durum</b></div>
+    <b>Durum</b>
     <div id="status">Yükleniyor...</div>
     <pre id="debug"></pre>
   </div>
 
   <div class="card">
-    <div><b>1) Kullanıcı adı</b></div>
-    <input id="username" placeholder="Örn: iphone11-1" />
+    <b>Kullanıcı adı</b>
+    <input id="username" placeholder="Örn: anil123" />
     <button id="saveBtn">Kaydet</button>
   </div>
 
   <div class="card">
-    <div><b>2) Bildirim</b></div>
-    <button id="localBtn">Local Test (hemen bildirim göster)</button>
-    <button id="subBtn">Bildirimleri Aç (subscribe)</button>
+    <b>Bildirim</b>
+    <button id="subBtn">Bildirimleri Aç</button>
   </div>
 
   <script>
-    // ✅ BURAYI kendi Worker URL'in ile değiştir
+    // ✅ Burayı kendi Worker URL'in ile değiştir
     const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
 
     const $ = (id) => document.getElementById(id);
+    const setStatus = (msg, ok=true) => $("status").innerHTML = `<span class="${ok ? 'ok':'bad'}">${msg}</span>`;
+    const setDebug = (obj) => $("debug").textContent = JSON.stringify(obj, null, 2);
 
-    function setStatus(msg, ok=true) {
-      $("status").innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${msg}</span>`;
+    function isStandalone() {
+      return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
     }
-    function setDebug(obj) {
-      $("debug").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+
+    function detectPlatform() {
+      const ua = navigator.userAgent || "";
+      const isIOS = /iPhone|iPad|iPod/i.test(ua);
+      const isAndroid = /Android/i.test(ua);
+      if (isIOS) return "iOS";
+      if (isAndroid) return "Android";
+      return "Desktop";
+    }
+
+    function detectBrowser() {
+      const ua = navigator.userAgent || "";
+      const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+      // iOS'ta tüm tarayıcılar Safari engine, ama pratikte "Safari" kontrolü gerekli
+      if (isIOS) {
+        // iOS Safari genelde "Safari" içerir, Chrome iOS "CriOS", Firefox iOS "FxiOS"
+        if (/CriOS/i.test(ua)) return "Chrome";
+        if (/FxiOS/i.test(ua)) return "Firefox";
+        if (/OPiOS/i.test(ua)) return "Opera";
+        return "Safari";
+      }
+
+      if (/SamsungBrowser/i.test(ua)) return "Samsung Internet";
+      if (/EdgA/i.test(ua) || /Edg/i.test(ua)) return "Edge";
+      if (/OPR/i.test(ua) || /Opera/i.test(ua)) return "Opera";
+      if (/Firefox/i.test(ua)) return "Firefox";
+      if (/Chrome/i.test(ua)) return "Chrome";
+      return "Other";
     }
 
     async function registerSW() {
-      if (!("serviceWorker" in navigator)) {
-        setStatus("Service Worker desteklenmiyor", false);
-        return;
-      }
+      if (!("serviceWorker" in navigator)) throw new Error("Service Worker desteklenmiyor");
       const reg = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
       return reg;
@@ -71,42 +96,55 @@
 
     async function getVapidKey() {
       const r = await fetch(WORKER_BASE + "/vapidPublicKey");
-      const k = await r.text();
-      return k.trim();
+      return (await r.text()).trim();
     }
 
     function getUsername() {
-      const u = $("username").value.trim();
-      return u;
+      return ($("username").value || "").trim().replace(/\s+/g,"").slice(0,64);
     }
 
-    $("saveBtn").onclick = () => {
-      const u = getUsername();
-      if (!u) return setStatus("Kullanıcı adı boş olamaz", false);
-      localStorage.setItem("betapp_username", u);
-      setStatus("Kayıt edildi: " + u, true);
-    };
+    async function upsertUser(subscribedGuess=false) {
+      const username = getUsername() || localStorage.getItem("betapp_username") || "";
+      if (!username) return;
 
-    $("localBtn").onclick = async () => {
-      const reg = await registerSW();
-      if (!reg) return;
-      // Bu test çalışıyorsa: iOS bildirim ayarların tamamdır.
-      await reg.showNotification("Local Test", { body: "Bu bildirim cihazda görünüyor mu?", icon: "/icon.png" });
-      setStatus("Local test gönderildi. Bildirim göründü mü?", true);
+      const platform = detectPlatform();
+      const browser = detectBrowser();
+      const installed = isStandalone();
+      const permission = (self.Notification && Notification.permission) ? Notification.permission : "unknown";
+      const subscribed = subscribedGuess;
+
+      await fetch(WORKER_BASE + "/upsertUser", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, platform, browser, installed, permission, subscribed }),
+      });
+    }
+
+    $("saveBtn").onclick = async () => {
+      const u = getUsername();
+      if(!u) return setStatus("Kullanıcı adı boş olamaz", false);
+      localStorage.setItem("betapp_username", u);
+      setStatus("Kaydedildi: " + u, true);
+      await upsertUser(false);
+      setDebug({ username: u, platform: detectPlatform(), browser: detectBrowser(), standalone: isStandalone(), permission: Notification.permission });
     };
 
     $("subBtn").onclick = async () => {
       try {
         const u = getUsername() || localStorage.getItem("betapp_username") || "";
-        if (!u) return setStatus("Önce kullanıcı adı kaydet", false);
+        if(!u) return setStatus("Önce kullanıcı adı kaydet", false);
 
         const reg = await registerSW();
-        if (!reg) return;
 
         const perm = await Notification.requestPermission();
-        if (perm !== "granted") return setStatus("Bildirim izni verilmedi: " + perm, false);
+        if (perm !== "granted") {
+          setStatus("Bildirim izni verilmedi: " + perm, false);
+          await upsertUser(false);
+          return;
+        }
 
         const vapid = await getVapidKey();
+
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapid),
@@ -119,33 +157,37 @@
         });
 
         const txt = await res.text();
-        setStatus("Subscribe OK. KV’ye yazıldı mı kontrol et.", true);
+        setStatus("Bildirimler Açıldı ✅", true);
+
+        await upsertUser(true);
 
         setDebug({
           username: u,
           permission: perm,
           endpoint: sub.endpoint,
-          worker: WORKER_BASE,
-          subscribeResponse: txt
+          subscribeResponse: txt,
+          platform: detectPlatform(),
+          browser: detectBrowser(),
+          standalone: isStandalone(),
         });
 
       } catch (e) {
-        setStatus("Subscribe hata: " + String(e), false);
+        setStatus("Hata: " + String(e), false);
         setDebug(String(e));
       }
     };
 
-    (async () => {
+    (async function init(){
       const saved = localStorage.getItem("betapp_username");
-      if (saved) $("username").value = saved;
+      if(saved) $("username").value = saved;
 
-      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-      const perm = Notification.permission;
+      try { await registerSW(); } catch(e) {}
 
-      setStatus("Hazır. Standalone=" + isStandalone + " permission=" + perm, true);
-      setDebug({ standalone: isStandalone, permission: perm, worker: WORKER_BASE });
+      setStatus("Hazır. Standalone=" + isStandalone() + " permission=" + (Notification.permission || "unknown"), true);
+      setDebug({ platform: detectPlatform(), browser: detectBrowser(), standalone: isStandalone(), permission: Notification.permission });
 
-      await registerSW();
+      // heartbeat (sayfa açıldı)
+      await upsertUser(false);
     })();
   </script>
 </body>
