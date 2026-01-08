@@ -10,9 +10,7 @@ self.addEventListener("push", (event) => {
       const data = await res.json();
       title = data.title || title;
       body = data.body || body;
-    } catch (e) {
-      // fallback
-    }
+    } catch (e) {}
 
     await self.registration.showNotification(title, {
       body,
