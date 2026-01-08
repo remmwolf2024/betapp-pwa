@@ -37,7 +37,6 @@
   </div>
 
   <script>
-    // ✅ Burayı kendi Worker URL'in ile değiştir
     const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
 
     const $ = (id) => document.getElementById(id);
@@ -61,21 +60,27 @@
       const ua = navigator.userAgent || "";
       const isIOS = /iPhone|iPad|iPod/i.test(ua);
 
-      // iOS'ta tüm tarayıcılar Safari engine, ama pratikte "Safari" kontrolü gerekli
       if (isIOS) {
-        // iOS Safari genelde "Safari" içerir, Chrome iOS "CriOS", Firefox iOS "FxiOS"
         if (/CriOS/i.test(ua)) return "Chrome";
         if (/FxiOS/i.test(ua)) return "Firefox";
         if (/OPiOS/i.test(ua)) return "Opera";
         return "Safari";
       }
-
       if (/SamsungBrowser/i.test(ua)) return "Samsung Internet";
       if (/EdgA/i.test(ua) || /Edg/i.test(ua)) return "Edge";
       if (/OPR/i.test(ua) || /Opera/i.test(ua)) return "Opera";
       if (/Firefox/i.test(ua)) return "Firefox";
       if (/Chrome/i.test(ua)) return "Chrome";
       return "Other";
+    }
+
+    function getOrCreateDeviceId(){
+      let id = localStorage.getItem("betapp_device_id");
+      if(!id){
+        id = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+"-"+Math.random()).replace(".","");
+        localStorage.setItem("betapp_device_id", id);
+      }
+      return id;
     }
 
     async function registerSW() {
@@ -103,7 +108,18 @@
       return ($("username").value || "").trim().replace(/\s+/g,"").slice(0,64);
     }
 
-    async function upsertUser(subscribedGuess=false) {
+    async function getSubscribedState(){
+      try{
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        return !!sub;
+      }catch(e){
+        return false;
+      }
+    }
+
+    async function upsertUser(){
+      const deviceId = getOrCreateDeviceId();
       const username = getUsername() || localStorage.getItem("betapp_username") || "";
       if (!username) return;
 
@@ -111,13 +127,15 @@
       const browser = detectBrowser();
       const installed = isStandalone();
       const permission = (self.Notification && Notification.permission) ? Notification.permission : "unknown";
-      const subscribed = subscribedGuess;
+      const subscribed = await getSubscribedState();
 
       await fetch(WORKER_BASE + "/upsertUser", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, platform, browser, installed, permission, subscribed }),
+        body: JSON.stringify({ deviceId, username, platform, browser, installed, permission, subscribed }),
       });
+
+      setDebug({ deviceId, username, platform, browser, installed, permission, subscribed });
     }
 
     $("saveBtn").onclick = async () => {
@@ -125,8 +143,7 @@
       if(!u) return setStatus("Kullanıcı adı boş olamaz", false);
       localStorage.setItem("betapp_username", u);
       setStatus("Kaydedildi: " + u, true);
-      await upsertUser(false);
-      setDebug({ username: u, platform: detectPlatform(), browser: detectBrowser(), standalone: isStandalone(), permission: Notification.permission });
+      await upsertUser();
     };
 
     $("subBtn").onclick = async () => {
@@ -139,7 +156,7 @@
         const perm = await Notification.requestPermission();
         if (perm !== "granted") {
           setStatus("Bildirim izni verilmedi: " + perm, false);
-          await upsertUser(false);
+          await upsertUser();
           return;
         }
 
@@ -150,25 +167,25 @@
           applicationServerKey: urlBase64ToUint8Array(vapid),
         });
 
+        const deviceId = getOrCreateDeviceId();
+
         const res = await fetch(WORKER_BASE + "/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: u, subscription: sub }),
+          body: JSON.stringify({ deviceId, username: u, subscription: sub }),
         });
 
         const txt = await res.text();
         setStatus("Bildirimler Açıldı ✅", true);
 
-        await upsertUser(true);
+        await upsertUser();
 
         setDebug({
+          deviceId,
           username: u,
           permission: perm,
           endpoint: sub.endpoint,
-          subscribeResponse: txt,
-          platform: detectPlatform(),
-          browser: detectBrowser(),
-          standalone: isStandalone(),
+          subscribeResponse: txt
         });
 
       } catch (e) {
@@ -183,11 +200,10 @@
 
       try { await registerSW(); } catch(e) {}
 
-      setStatus("Hazır. Standalone=" + isStandalone() + " permission=" + (Notification.permission || "unknown"), true);
-      setDebug({ platform: detectPlatform(), browser: detectBrowser(), standalone: isStandalone(), permission: Notification.permission });
+      const subscribed = await getSubscribedState();
+      setStatus(`Hazır. Standalone=${isStandalone()} permission=${Notification.permission} subscribed=${subscribed}`, true);
 
-      // heartbeat (sayfa açıldı)
-      await upsertUser(false);
+      await upsertUser();
     })();
   </script>
 </body>
