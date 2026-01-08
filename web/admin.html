@@ -2,30 +2,28 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Admin Panel</title>
   <style>
-    body { font-family: system-ui, -apple-system, Arial; max-width: 980px; margin: 0 auto; padding: 20px; }
-    h1 { margin: 8px 0 16px; }
-    .row { display:flex; gap:12px; flex-wrap:wrap; }
-    .card { border:1px solid #ddd; border-radius:12px; padding:14px; margin:12px 0; }
-    .card h2 { font-size:16px; margin:0 0 10px; }
-    input, textarea, button, select { font-size:16px; padding:12px; width:100%; box-sizing:border-box; }
-    textarea { height: 96px; resize: vertical; }
-    button { cursor:pointer; }
-    .muted { color:#666; font-size:13px; }
-    .ok { color:#0a7; font-weight:700; }
-    .bad { color:#c00; font-weight:700; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { text-align:left; padding:10px; border-bottom:1px solid #eee; font-size:14px; }
-    th { font-size:12px; color:#444; text-transform:uppercase; letter-spacing:.03em; }
-    .pill { padding:2px 8px; border-radius:999px; font-size:12px; display:inline-block; border:1px solid #ddd; }
-    .pill.on { border-color:#0a7; color:#0a7; }
-    .pill.off { border-color:#c00; color:#c00; }
-    .pill.mid { border-color:#999; color:#555; }
-    .right { margin-left:auto; }
-    .grid4 { display:grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; }
-    @media (max-width: 800px){ .grid4 { grid-template-columns: repeat(2, 1fr); } }
+    body { font-family: system-ui, -apple-system, Arial; padding: 24px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 44px; margin: 10px 0 6px; }
+    .muted { color:#666; margin-bottom: 18px; }
+    .card { border: 1px solid #ddd; border-radius: 14px; padding: 18px; margin: 16px 0; }
+    label { display:block; font-weight: 700; margin-top: 12px; }
+    input, textarea, button { width: 100%; padding: 14px; font-size: 16px; margin-top: 8px; }
+    textarea { min-height: 110px; }
+    .row { display:flex; gap: 12px; align-items:flex-end; }
+    .row > div { flex:1; }
+    .btn { cursor:pointer; }
+    .btnSmall { width:auto; padding: 10px 14px; }
+    table { width:100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-top:1px solid #eee; padding: 12px 10px; text-align:left; }
+    th { background:#fafafa; }
+    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; border:1px solid #ddd; font-size: 13px; }
+    .green { border-color:#0a7; color:#0a7; font-weight:700; }
+    .red { border-color:#c00; color:#c00; font-weight:700; }
+    pre { background:#f7f7f7; border-radius: 10px; padding: 12px; overflow:auto; }
+    .hint { font-size: 13px; color:#666; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -35,272 +33,224 @@
   <div class="card">
     <h2>Giriş</h2>
     <div class="row">
-      <div style="flex:1; min-width:220px">
-        <input id="user" placeholder="Admin kullanıcı adı" />
+      <div>
+        <label>Kullanıcı adı</label>
+        <input id="u" placeholder="admin">
       </div>
-      <div style="flex:1; min-width:220px">
-        <input id="pass" type="password" placeholder="Admin şifre" />
+      <div>
+        <label>Şifre</label>
+        <input id="p" type="password" placeholder="••••••••">
       </div>
-      <div style="min-width:160px">
-        <button id="loginBtn">Giriş Yap</button>
+      <div style="flex:0 0 160px;">
+        <button class="btn" id="loginBtn">Giriş Yap</button>
       </div>
-      <div class="right muted" id="loginState"></div>
     </div>
-  </div>
-
-  <div class="card">
-    <h2>Dashboard</h2>
-    <div class="grid4" id="dash">
-      <div class="card"><div class="muted">Toplam kullanıcı</div><div id="d_total" style="font-size:26px">-</div></div>
-      <div class="card"><div class="muted">Installed</div><div id="d_installed" style="font-size:26px">-</div></div>
-      <div class="card"><div class="muted">Push açık</div><div id="d_subscribed" style="font-size:26px">-</div></div>
-      <div class="card"><div class="muted">iOS Safari dışı</div><div id="d_ios_bad" style="font-size:26px">-</div></div>
-    </div>
-    <pre id="dashRaw" style="display:none"></pre>
-    <div class="row">
-      <button id="refreshBtn">Yenile</button>
-    </div>
+    <div id="loginInfo" class="hint"></div>
   </div>
 
   <div class="card">
     <h2>Bildirim Gönder</h2>
-    <div class="muted">Başlık (0/40), Mesaj (0/120)</div>
-    <input id="title" placeholder="Başlık" maxlength="40" />
-    <div class="muted" id="tcount">0/40</div>
-    <textarea id="body" placeholder="Mesaj" maxlength="120"></textarea>
-    <div class="muted" id="bcount">0/120</div>
-    <button id="sendBtn">Gönder</button>
+
+    <label>Başlık (max 40)</label>
+    <input id="title" maxlength="40" placeholder="Freespin!" />
+
+    <label>Mesaj (max 120)</label>
+    <textarea id="body" maxlength="120" placeholder="Bugüne özel ..."></textarea>
+
+    <button class="btn" id="sendBtn">Gönder</button>
     <pre id="sendOut"></pre>
   </div>
 
   <div class="card">
     <h2>Kullanıcılar</h2>
+
     <div class="row">
-      <select id="filter">
-        <option value="all">Hepsi</option>
-        <option value="ios_bad">iOS + Safari olmayan</option>
-        <option value="and_bad">Android + Chrome/Samsung olmayan</option>
-        <option value="subscribed">Push açık olanlar</option>
-      </select>
-      <button id="loadBtn">Listeyi Yükle</button>
-      <button id="nextBtn">Sonraki Sayfa</button>
-      <div class="right muted" id="pageInfo"></div>
+      <div>
+        <label>Username ara (tüm kullanıcılar)</label>
+        <input id="search" placeholder="örn: test, ali, anil123">
+        <div class="hint">Bu arama tüm kayıtları tarar. Sonuçlar en son görülenlere göre sıralanır.</div>
+      </div>
+      <div style="flex:0 0 160px;">
+        <button class="btn btnSmall" id="searchBtn">Ara</button>
+      </div>
     </div>
-    <div style="overflow:auto">
-      <table>
-        <thead>
-          <tr>
-            <th>Kullanıcı</th>
-            <th>Platform</th>
-            <th>Tarayıcı</th>
-            <th>Installed</th>
-            <th>Push</th>
-            <th>Son Görülme</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+
+    <div class="row" style="margin-top:10px;">
+      <div style="flex:0 0 220px;">
+        <button class="btn" id="listBtn">Kullanıcıları Listele</button>
+      </div>
+      <div style="flex:0 0 220px;">
+        <button class="btn" id="nextBtn">Sonraki Sayfa</button>
+      </div>
+      <div style="flex:1; display:flex; align-items:center; justify-content:flex-end;">
+        <span id="pageInfo" class="hint"></span>
+      </div>
     </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Kullanıcı</th>
+          <th>Platform</th>
+          <th>Tarayıcı</th>
+          <th>Installed</th>
+          <th>Push</th>
+          <th>Son görülme</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
   </div>
 
-  <script>
-    // ✅ Burayı kendi Worker URL'in ile değiştir
-    const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
+<script>
+  // Burayı kendi WORKER domaininle eşleştir
+  const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
 
-    const $ = (id) => document.getElementById(id);
+  const $ = (id) => document.getElementById(id);
 
-    let authHeader = "";
-    let nextCursor = null;
+  function basicAuthHeader(u, p){
+    return "Basic " + btoa(`${u}:${p}`);
+  }
 
-    function setLoginState(ok, msg){
-      $("loginState").innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${msg}</span>`;
+  function fmtTs(ts){
+    if(!ts) return "-";
+    const d = new Date(ts);
+    return d.toLocaleString("tr-TR");
+  }
+
+  function pill(text, ok){
+    return `<span class="pill ${ok ? 'green':'red'}">${text}</span>`;
+  }
+
+  function renderUsers(users){
+    const tb = $("tbody");
+    tb.innerHTML = "";
+    for(const u of users){
+      const pushOk = !!u.subscribed;
+      const instOk = !!u.installed;
+
+      tb.insertAdjacentHTML("beforeend", `
+        <tr>
+          <td><b>${(u.username||"-")}</b></td>
+          <td><span class="pill">${u.platform||"-"}</span></td>
+          <td><span class="pill">${u.browser||"-"}</span></td>
+          <td>${pill(instOk ? "Evet" : "Hayır", instOk)}</td>
+          <td>${pill(pushOk ? "Açık" : "Kapalı", pushOk)}</td>
+          <td>${fmtTs(u.last_seen)}</td>
+        </tr>
+      `);
     }
+  }
 
-    function makeBasic(user, pass){
-      return "Basic " + btoa(user + ":" + pass);
-    }
-
-    function fmtTime(ms){
-      if(!ms) return "-";
-      const d = new Date(ms);
-      return d.toLocaleString();
-    }
-
-    function pill(val, type){
-      if(type === "installed"){
-        return `<span class="pill ${val ? 'on' : 'off'}">${val ? 'Evet' : 'Hayır'}</span>`;
-      }
-      if(type === "push"){
-        return `<span class="pill ${val ? 'on' : 'off'}">${val ? 'Açık' : 'Kapalı'}</span>`;
-      }
-      return `<span class="pill mid">${val || '-'}</span>`;
-    }
-
-    async function api(path, opts = {}){
-      const res = await fetch(WORKER_BASE + path, {
-        ...opts,
-        headers: {
-          ...(opts.headers || {}),
-          "Authorization": authHeader,
-          "Content-Type": "application/json",
-        }
-      });
-      if(res.status === 401) throw new Error("UNAUTHORIZED");
-      const ct = res.headers.get("content-type") || "";
-      if(ct.includes("application/json")) return await res.json();
-      return await res.text();
-    }
-
-    function computeIosBad(users){
-      let c = 0;
-      for(const u of users){
-        if((u.platform === "iOS") && (u.browser !== "Safari")) c++;
-      }
-      return c;
-    }
-
-    async function loadDashboard(){
-      const data = await api("/stats", { method: "GET" });
-      $("d_total").textContent = data.total ?? "-";
-      $("d_installed").textContent = data.installed ?? "-";
-      $("d_subscribed").textContent = data.subscribed ?? "-";
-
-      // iOS Safari dışı sayısını stats'ten direkt alamıyoruz (MVP).
-      // Kullanıcı listesi ilk sayfadan yaklaşık hesaplıyoruz.
-      const page = await api("/users?limit=200", { method: "GET" });
-      const iosBad = computeIosBad(page.users || []);
-      $("d_ios_bad").textContent = iosBad;
-
-      return data;
-    }
-
-    async function loadUsers(reset = true){
-      if(reset) nextCursor = null;
-
-      const limit = 50;
-      const cursorPart = nextCursor ? `&cursor=${encodeURIComponent(nextCursor)}` : "";
-      const data = await api(`/users?limit=${limit}${cursorPart}`, { method: "GET" });
-
-      nextCursor = data.cursor;
-      $("pageInfo").textContent = nextCursor ? "Devam var" : "Son sayfa";
-
-      const mode = $("filter").value;
-
-      const rows = [];
-      for(const u of (data.users || [])){
-        const platform = u.platform || "Other";
-        const browser = u.browser || "Other";
-
-        const iosBad = (platform === "iOS" && browser !== "Safari");
-        const andBad = (platform === "Android" && !(browser === "Chrome" || browser === "Samsung Internet" || browser === "Edge"));
-
-        if(mode === "ios_bad" && !iosBad) continue;
-        if(mode === "and_bad" && !andBad) continue;
-        if(mode === "subscribed" && !u.subscribed) continue;
-
-        rows.push(`
-          <tr>
-            <td><b>${u.username || "-"}</b></td>
-            <td>${pill(platform)}</td>
-            <td>${pill(browser)}</td>
-            <td>${pill(!!u.installed, "installed")}</td>
-            <td>${pill(!!u.subscribed, "push")}</td>
-            <td>${fmtTime(u.last_seen)}</td>
-          </tr>
-        `);
-      }
-
-      $("tbody").innerHTML = rows.join("") || `<tr><td colspan="6" class="muted">Kayıt yok</td></tr>`;
-    }
-
-    function wireCounters(){
-      const t = $("title");
-      const b = $("body");
-      const upd = () => {
-        $("tcount").textContent = `${t.value.length}/40`;
-        $("bcount").textContent = `${b.value.length}/120`;
-      };
-      t.addEventListener("input", upd);
-      b.addEventListener("input", upd);
-      upd();
-    }
-
-    $("loginBtn").onclick = async () => {
-      const u = $("user").value.trim();
-      const p = $("pass").value.trim();
-      if(!u || !p) return setLoginState(false, "Kullanıcı/şifre boş olamaz");
-
-      authHeader = makeBasic(u, p);
-      localStorage.setItem("betapp_admin_user", u);
-      localStorage.setItem("betapp_admin_pass", p);
-
-      try{
-        await loadDashboard();
-        setLoginState(true, "Giriş başarılı");
-      }catch(e){
-        setLoginState(false, "Giriş başarısız");
-      }
+  function getCreds(){
+    return {
+      u: $("u").value.trim(),
+      p: $("p").value
     };
+  }
 
-    $("refreshBtn").onclick = async () => {
-      try{
-        await loadDashboard();
-        setLoginState(true, "Yenilendi");
-      }catch(e){
-        setLoginState(false, "Yetki yok / hata");
-      }
-    };
+  function saveCreds(){
+    localStorage.setItem("admin_u", $("u").value.trim());
+    localStorage.setItem("admin_p", $("p").value);
+  }
 
-    $("loadBtn").onclick = async () => {
-      try{
-        await loadUsers(true);
-      }catch(e){
-        setLoginState(false, "Yetki yok / hata");
-      }
-    };
+  function loadCreds(){
+    const u = localStorage.getItem("admin_u") || "";
+    const p = localStorage.getItem("admin_p") || "";
+    $("u").value = u;
+    $("p").value = p;
+    if(u && p) $("loginInfo").textContent = "Otomatik giriş hazır (kayıtlı).";
+  }
 
-    $("nextBtn").onclick = async () => {
-      if(!nextCursor) return;
-      try{
-        await loadUsers(false);
-      }catch(e){
-        setLoginState(false, "Yetki yok / hata");
-      }
-    };
+  async function adminFetch(path, opts={}){
+    const {u,p} = getCreds();
+    const headers = new Headers(opts.headers || {});
+    headers.set("Authorization", basicAuthHeader(u,p));
+    return fetch(WORKER_BASE + path, { ...opts, headers });
+  }
 
-    $("sendBtn").onclick = async () => {
-      const title = $("title").value.slice(0,40);
-      const body = $("body").value.slice(0,120);
+  let cursor = null;
+  let mode = "list"; // list | search
 
-      if(title.length === 0 && body.length === 0){
-        $("sendOut").textContent = "Başlık veya mesaj gir.";
-        return;
-      }
+  $("loginBtn").onclick = async () => {
+    saveCreds();
+    // test auth with small call
+    const r = await adminFetch("/users?limit=1");
+    if(r.status === 401){
+      $("loginInfo").textContent = "Giriş hatalı.";
+      $("loginInfo").style.color = "#c00";
+    } else {
+      $("loginInfo").textContent = "Giriş başarılı.";
+      $("loginInfo").style.color = "#0a7";
+    }
+  };
 
-      try{
-        const res = await api("/send", {
-          method: "POST",
-          body: JSON.stringify({ title, body })
-        });
-        $("sendOut").textContent = JSON.stringify(res, null, 2);
-      }catch(e){
-        $("sendOut").textContent = "Hata / yetki yok";
-      }
-    };
+  $("sendBtn").onclick = async () => {
+    saveCreds();
+    const title = $("title").value.slice(0,40);
+    const body = $("body").value.slice(0,120);
 
-    (function init(){
-      wireCounters();
-      const su = localStorage.getItem("betapp_admin_user") || "";
-      const sp = localStorage.getItem("betapp_admin_pass") || "";
-      $("user").value = su;
-      $("pass").value = sp;
-      if(su && sp){
-        authHeader = makeBasic(su, sp);
-        loadDashboard().then(()=>setLoginState(true,"Otomatik giriş")).catch(()=>setLoginState(false,"Giriş gerekli"));
-      } else {
-        setLoginState(false,"Giriş gerekli");
-      }
-    })();
-  </script>
+    const r = await adminFetch("/send", {
+      method:"POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ title, body })
+    });
+
+    const txt = await r.text();
+    $("sendOut").textContent = txt;
+  };
+
+  $("listBtn").onclick = async () => {
+    saveCreds();
+    mode = "list";
+    cursor = null;
+
+    const r = await adminFetch("/users?limit=50");
+    if(r.status === 401){ $("pageInfo").textContent = "Giriş gerekli."; return; }
+
+    const data = await r.json();
+    renderUsers(data.users || []);
+    cursor = data.cursor || null;
+    $("pageInfo").textContent = cursor ? "Sayfa 1" : "Tek sayfa";
+  };
+
+  $("nextBtn").onclick = async () => {
+    saveCreds();
+    if(mode !== "list"){
+      $("pageInfo").textContent = "Arama modunda sayfalama yok. Tekrar listelemek için 'Kullanıcıları Listele' tıkla.";
+      return;
+    }
+    if(!cursor){
+      $("pageInfo").textContent = "Son sayfa.";
+      return;
+    }
+
+    const r = await adminFetch("/users?limit=50&cursor=" + encodeURIComponent(cursor));
+    if(r.status === 401){ $("pageInfo").textContent = "Giriş gerekli."; return; }
+
+    const data = await r.json();
+    renderUsers(data.users || []);
+    cursor = data.cursor || null;
+    $("pageInfo").textContent = cursor ? "Sonraki sayfa yüklendi" : "Son sayfa";
+  };
+
+  $("searchBtn").onclick = async () => {
+    saveCreds();
+    mode = "search";
+    cursor = null;
+
+    const q = $("search").value.trim();
+    if(!q){ $("pageInfo").textContent = "Arama için username yaz."; return; }
+
+    const r = await adminFetch("/search?username=" + encodeURIComponent(q) + "&limit=200");
+    if(r.status === 401){ $("pageInfo").textContent = "Giriş gerekli."; return; }
+
+    const data = await r.json();
+    renderUsers(data.users || []);
+    $("pageInfo").textContent = `Arama sonucu: ${(data.users||[]).length} kayıt`;
+  };
+
+  loadCreds();
+</script>
 </body>
 </html>
