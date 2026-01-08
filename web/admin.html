@@ -1,47 +1,306 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Bildirim</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Panel</title>
   <style>
-    body { font-family: -apple-system, system-ui, Arial; padding: 20px; max-width: 520px; margin: 0 auto; }
-    input, textarea, button { width: 100%; padding: 12px; font-size: 16px; margin: 8px 0; }
-    textarea { height: 120px; }
-    .muted { color:#666; font-size: 14px; }
+    body { font-family: system-ui, -apple-system, Arial; max-width: 980px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 8px 0 16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:14px; margin:12px 0; }
+    .card h2 { font-size:16px; margin:0 0 10px; }
+    input, textarea, button, select { font-size:16px; padding:12px; width:100%; box-sizing:border-box; }
+    textarea { height: 96px; resize: vertical; }
+    button { cursor:pointer; }
+    .muted { color:#666; font-size:13px; }
+    .ok { color:#0a7; font-weight:700; }
+    .bad { color:#c00; font-weight:700; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { text-align:left; padding:10px; border-bottom:1px solid #eee; font-size:14px; }
+    th { font-size:12px; color:#444; text-transform:uppercase; letter-spacing:.03em; }
+    .pill { padding:2px 8px; border-radius:999px; font-size:12px; display:inline-block; border:1px solid #ddd; }
+    .pill.on { border-color:#0a7; color:#0a7; }
+    .pill.off { border-color:#c00; color:#c00; }
+    .pill.mid { border-color:#999; color:#555; }
+    .right { margin-left:auto; }
+    .grid4 { display:grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; }
+    @media (max-width: 800px){ .grid4 { grid-template-columns: repeat(2, 1fr); } }
   </style>
 </head>
 <body>
-  <h2>Admin Bildirim Gönder</h2>
-  <div class="muted">ADMIN_TOKEN yaz, sonra gönder.</div>
+  <h1>Admin Panel</h1>
+  <div class="muted">Giriş: kullanıcı adı + şifre (Basic Auth). Başlık max 40, mesaj max 120.</div>
 
-  <input id="token" placeholder="ADMIN_TOKEN" />
-  <input id="title" placeholder="Başlık" value="Freespin!" />
-  <textarea id="body" placeholder="Mesaj">Bugüne özel 50 freespin kodu: ABC50</textarea>
+  <div class="card">
+    <h2>Giriş</h2>
+    <div class="row">
+      <div style="flex:1; min-width:220px">
+        <input id="user" placeholder="Admin kullanıcı adı" />
+      </div>
+      <div style="flex:1; min-width:220px">
+        <input id="pass" type="password" placeholder="Admin şifre" />
+      </div>
+      <div style="min-width:160px">
+        <button id="loginBtn">Giriş Yap</button>
+      </div>
+      <div class="right muted" id="loginState"></div>
+    </div>
+  </div>
 
-  <button id="send">Gönder</button>
+  <div class="card">
+    <h2>Dashboard</h2>
+    <div class="grid4" id="dash">
+      <div class="card"><div class="muted">Toplam kullanıcı</div><div id="d_total" style="font-size:26px">-</div></div>
+      <div class="card"><div class="muted">Installed</div><div id="d_installed" style="font-size:26px">-</div></div>
+      <div class="card"><div class="muted">Push açık</div><div id="d_subscribed" style="font-size:26px">-</div></div>
+      <div class="card"><div class="muted">iOS Safari dışı</div><div id="d_ios_bad" style="font-size:26px">-</div></div>
+    </div>
+    <pre id="dashRaw" style="display:none"></pre>
+    <div class="row">
+      <button id="refreshBtn">Yenile</button>
+    </div>
+  </div>
 
-  <pre id="out"></pre>
+  <div class="card">
+    <h2>Bildirim Gönder</h2>
+    <div class="muted">Başlık (0/40), Mesaj (0/120)</div>
+    <input id="title" placeholder="Başlık" maxlength="40" />
+    <div class="muted" id="tcount">0/40</div>
+    <textarea id="body" placeholder="Mesaj" maxlength="120"></textarea>
+    <div class="muted" id="bcount">0/120</div>
+    <button id="sendBtn">Gönder</button>
+    <pre id="sendOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Kullanıcılar</h2>
+    <div class="row">
+      <select id="filter">
+        <option value="all">Hepsi</option>
+        <option value="ios_bad">iOS + Safari olmayan</option>
+        <option value="and_bad">Android + Chrome/Samsung olmayan</option>
+        <option value="subscribed">Push açık olanlar</option>
+      </select>
+      <button id="loadBtn">Listeyi Yükle</button>
+      <button id="nextBtn">Sonraki Sayfa</button>
+      <div class="right muted" id="pageInfo"></div>
+    </div>
+    <div style="overflow:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Kullanıcı</th>
+            <th>Platform</th>
+            <th>Tarayıcı</th>
+            <th>Installed</th>
+            <th>Push</th>
+            <th>Son Görülme</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
 
   <script>
+    // ✅ Burayı kendi Worker URL'in ile değiştir
     const WORKER_BASE = "https://betapp-pwa.remmwolf2024.workers.dev";
 
-    document.getElementById("send").onclick = async () => {
-      const token = document.getElementById("token").value.trim();
-      const title = document.getElementById("title").value.trim();
-      const body = document.getElementById("body").value.trim();
+    const $ = (id) => document.getElementById(id);
 
-      const res = await fetch(WORKER_BASE + "/send", {
-        method: "POST",
+    let authHeader = "";
+    let nextCursor = null;
+
+    function setLoginState(ok, msg){
+      $("loginState").innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${msg}</span>`;
+    }
+
+    function makeBasic(user, pass){
+      return "Basic " + btoa(user + ":" + pass);
+    }
+
+    function fmtTime(ms){
+      if(!ms) return "-";
+      const d = new Date(ms);
+      return d.toLocaleString();
+    }
+
+    function pill(val, type){
+      if(type === "installed"){
+        return `<span class="pill ${val ? 'on' : 'off'}">${val ? 'Evet' : 'Hayır'}</span>`;
+      }
+      if(type === "push"){
+        return `<span class="pill ${val ? 'on' : 'off'}">${val ? 'Açık' : 'Kapalı'}</span>`;
+      }
+      return `<span class="pill mid">${val || '-'}</span>`;
+    }
+
+    async function api(path, opts = {}){
+      const res = await fetch(WORKER_BASE + path, {
+        ...opts,
         headers: {
+          ...(opts.headers || {}),
+          "Authorization": authHeader,
           "Content-Type": "application/json",
-          "Authorization": "Bearer " + token
-        },
-        body: JSON.stringify({ title, body })
+        }
       });
+      if(res.status === 401) throw new Error("UNAUTHORIZED");
+      const ct = res.headers.get("content-type") || "";
+      if(ct.includes("application/json")) return await res.json();
+      return await res.text();
+    }
 
-      document.getElementById("out").textContent = await res.text();
+    function computeIosBad(users){
+      let c = 0;
+      for(const u of users){
+        if((u.platform === "iOS") && (u.browser !== "Safari")) c++;
+      }
+      return c;
+    }
+
+    async function loadDashboard(){
+      const data = await api("/stats", { method: "GET" });
+      $("d_total").textContent = data.total ?? "-";
+      $("d_installed").textContent = data.installed ?? "-";
+      $("d_subscribed").textContent = data.subscribed ?? "-";
+
+      // iOS Safari dışı sayısını stats'ten direkt alamıyoruz (MVP).
+      // Kullanıcı listesi ilk sayfadan yaklaşık hesaplıyoruz.
+      const page = await api("/users?limit=200", { method: "GET" });
+      const iosBad = computeIosBad(page.users || []);
+      $("d_ios_bad").textContent = iosBad;
+
+      return data;
+    }
+
+    async function loadUsers(reset = true){
+      if(reset) nextCursor = null;
+
+      const limit = 50;
+      const cursorPart = nextCursor ? `&cursor=${encodeURIComponent(nextCursor)}` : "";
+      const data = await api(`/users?limit=${limit}${cursorPart}`, { method: "GET" });
+
+      nextCursor = data.cursor;
+      $("pageInfo").textContent = nextCursor ? "Devam var" : "Son sayfa";
+
+      const mode = $("filter").value;
+
+      const rows = [];
+      for(const u of (data.users || [])){
+        const platform = u.platform || "Other";
+        const browser = u.browser || "Other";
+
+        const iosBad = (platform === "iOS" && browser !== "Safari");
+        const andBad = (platform === "Android" && !(browser === "Chrome" || browser === "Samsung Internet" || browser === "Edge"));
+
+        if(mode === "ios_bad" && !iosBad) continue;
+        if(mode === "and_bad" && !andBad) continue;
+        if(mode === "subscribed" && !u.subscribed) continue;
+
+        rows.push(`
+          <tr>
+            <td><b>${u.username || "-"}</b></td>
+            <td>${pill(platform)}</td>
+            <td>${pill(browser)}</td>
+            <td>${pill(!!u.installed, "installed")}</td>
+            <td>${pill(!!u.subscribed, "push")}</td>
+            <td>${fmtTime(u.last_seen)}</td>
+          </tr>
+        `);
+      }
+
+      $("tbody").innerHTML = rows.join("") || `<tr><td colspan="6" class="muted">Kayıt yok</td></tr>`;
+    }
+
+    function wireCounters(){
+      const t = $("title");
+      const b = $("body");
+      const upd = () => {
+        $("tcount").textContent = `${t.value.length}/40`;
+        $("bcount").textContent = `${b.value.length}/120`;
+      };
+      t.addEventListener("input", upd);
+      b.addEventListener("input", upd);
+      upd();
+    }
+
+    $("loginBtn").onclick = async () => {
+      const u = $("user").value.trim();
+      const p = $("pass").value.trim();
+      if(!u || !p) return setLoginState(false, "Kullanıcı/şifre boş olamaz");
+
+      authHeader = makeBasic(u, p);
+      localStorage.setItem("betapp_admin_user", u);
+      localStorage.setItem("betapp_admin_pass", p);
+
+      try{
+        await loadDashboard();
+        setLoginState(true, "Giriş başarılı");
+      }catch(e){
+        setLoginState(false, "Giriş başarısız");
+      }
     };
+
+    $("refreshBtn").onclick = async () => {
+      try{
+        await loadDashboard();
+        setLoginState(true, "Yenilendi");
+      }catch(e){
+        setLoginState(false, "Yetki yok / hata");
+      }
+    };
+
+    $("loadBtn").onclick = async () => {
+      try{
+        await loadUsers(true);
+      }catch(e){
+        setLoginState(false, "Yetki yok / hata");
+      }
+    };
+
+    $("nextBtn").onclick = async () => {
+      if(!nextCursor) return;
+      try{
+        await loadUsers(false);
+      }catch(e){
+        setLoginState(false, "Yetki yok / hata");
+      }
+    };
+
+    $("sendBtn").onclick = async () => {
+      const title = $("title").value.slice(0,40);
+      const body = $("body").value.slice(0,120);
+
+      if(title.length === 0 && body.length === 0){
+        $("sendOut").textContent = "Başlık veya mesaj gir.";
+        return;
+      }
+
+      try{
+        const res = await api("/send", {
+          method: "POST",
+          body: JSON.stringify({ title, body })
+        });
+        $("sendOut").textContent = JSON.stringify(res, null, 2);
+      }catch(e){
+        $("sendOut").textContent = "Hata / yetki yok";
+      }
+    };
+
+    (function init(){
+      wireCounters();
+      const su = localStorage.getItem("betapp_admin_user") || "";
+      const sp = localStorage.getItem("betapp_admin_pass") || "";
+      $("user").value = su;
+      $("pass").value = sp;
+      if(su && sp){
+        authHeader = makeBasic(su, sp);
+        loadDashboard().then(()=>setLoginState(true,"Otomatik giriş")).catch(()=>setLoginState(false,"Giriş gerekli"));
+      } else {
+        setLoginState(false,"Giriş gerekli");
+      }
+    })();
   </script>
 </body>
 </html>
